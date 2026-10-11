@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 import {
   Wind, Droplet, Volume2, Trash2, Factory, Waves, Car, TreePine, AlertCircle,
   CheckCircle2, Clock, MapPin, Calendar, Bell, User, LogOut, Search,
   ChevronRight, ChevronDown, Upload, BarChart3, Award, BookOpen,
   Menu, X, ArrowRight, Leaf, ShieldCheck, Building2, FileText, Send,
   Recycle, Users, Sprout, CircleAlert, ClipboardList, LayoutGrid,
-  Mail, Phone, Lock, Briefcase,
+  Mail, Phone, Lock, Briefcase, Loader2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -16,18 +17,10 @@ import {
 /* Tokens                                                                  */
 /* ---------------------------------------------------------------------- */
 const T = {
-  ink: "#132420",
-  forest: "#1F5C46",
-  forestDark: "#153E30",
-  moss: "#5E8468",
-  sky: "#2B6E8F",
-  clay: "#B85A26",
-  paper: "#F1F4EF",
-  card: "#FFFFFF",
-  line: "#DEE5DA",
-  faint: "#7C8B81",
+  ink: "#132420", forest: "#1F5C46", forestDark: "#153E30", moss: "#5E8468",
+  sky: "#2B6E8F", clay: "#B85A26", paper: "#F1F4EF", card: "#FFFFFF",
+  line: "#DEE5DA", faint: "#7C8B81",
 };
-
 const FONT_DISPLAY = "'Space Grotesk', 'Segoe UI', sans-serif";
 const FONT_BODY = "'IBM Plex Sans', 'Segoe UI', sans-serif";
 
@@ -46,76 +39,17 @@ const CATEGORIES = [
   { id: "other", label: "Other", icon: AlertCircle, color: "#7C8B81" },
 ];
 const catMeta = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
-
 const STATUS_FLOW = ["Submitted", "Under Review", "Assigned", "In Progress", "Resolved", "Closed"];
 const DEPARTMENTS = [
   "Municipal Waste Management", "Water & Sewage Board", "Air Quality Control Cell",
   "Noise & Nuisance Control", "Industrial Compliance Unit", "Public Works Department",
 ];
-const DESIGNATIONS = [
-  "Grievance Officer", "Department Head", "Field Inspector", "Administrative Staff", "Other",
-];
+const DESIGNATIONS = ["Grievance Officer", "Department Head", "Field Inspector", "Administrative Staff", "Other"];
 
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d;
-}
-function fmt(d) {
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-function fmtTime(d) {
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-}
+function fmt(d) { return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+function fmtTime(d) { return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }); }
 
-function buildTimeline(statusIdx, baseDate, dept) {
-  const notes = {
-    "Submitted": "Complaint received and logged into the system.",
-    "Under Review": "Initial review completed by the grievance cell.",
-    "Assigned": `Forwarded to ${dept} for action.`,
-    "In Progress": "Field inspection scheduled and underway.",
-    "Resolved": "Corrective action completed at the site.",
-    "Closed": "Citizen confirmed resolution. Complaint closed.",
-  };
-  const tl = [];
-  for (let i = 0; i <= statusIdx; i++) {
-    const d = new Date(baseDate);
-    d.setDate(d.getDate() + i * 2);
-    tl.push({ status: STATUS_FLOW[i], date: d, note: notes[STATUS_FLOW[i]], department: i >= 2 ? dept : "Grievance Cell" });
-  }
-  return tl;
-}
-
-function seedComplaints() {
-  const seeds = [
-    { title: "Open burning of garbage near school", category: "air", location: "Sector 12, Gangapur Road", priority: "High", statusIdx: 4, daysBack: 18, dept: "Air Quality Control Cell" },
-    { title: "Factory discharging effluent into stream", category: "water", location: "MIDC Ambad, Nashik", priority: "High", statusIdx: 3, daysBack: 12, dept: "Water & Sewage Board" },
-    { title: "Loudspeakers past permitted hours", category: "noise", location: "College Road", priority: "Medium", statusIdx: 5, daysBack: 25, dept: "Noise & Nuisance Control" },
-    { title: "Garbage not collected for a week", category: "waste", location: "Panchavati, Ward 9", priority: "Medium", statusIdx: 2, daysBack: 6, dept: "Municipal Waste Management" },
-    { title: "Overflowing drain near main market", category: "sewage", location: "Sharanpur Road", priority: "High", statusIdx: 1, daysBack: 3, dept: "Water & Sewage Board" },
-    { title: "Black smoke from old diesel buses", category: "vehicular", location: "CBS Bus Stand", priority: "Medium", statusIdx: 0, daysBack: 1, dept: "Air Quality Control Cell" },
-    { title: "Tree felling without permission", category: "environmental", location: "Someshwar Ghat", priority: "Low", statusIdx: 4, daysBack: 20, dept: "Public Works Department" },
-    { title: "Chemical odour from unit at night", category: "industrial", location: "Satpur MIDC", priority: "High", statusIdx: 3, daysBack: 9, dept: "Industrial Compliance Unit" },
-  ];
-  return seeds.map((s, i) => {
-    const base = daysAgo(s.daysBack);
-    return {
-      id: `PC-2026-${String(120 + i).padStart(5, "0")}`,
-      title: s.title,
-      category: s.category,
-      description: "Reported via the citizen portal. Details verified during municipal review.",
-      location: s.location,
-      priority: s.priority,
-      hasEvidence: i % 2 === 0,
-      citizen: "Demo Citizen",
-      status: STATUS_FLOW[s.statusIdx],
-      department: s.statusIdx >= 2 ? s.dept : "Unassigned",
-      createdAt: base,
-      timeline: buildTimeline(s.statusIdx, base, s.dept),
-    };
-  });
-}
-
+/* Awareness content (unchanged, static) */
 const POLLUTION_INFO = [
   { id: "air", title: "Air Pollution", icon: Wind, blurb: "Harmful gases and particulate matter released into the atmosphere.", causes: "Vehicle exhaust, industrial emissions, open burning, construction dust.", impact: "Respiratory illness, reduced visibility, damage to crops and buildings.", prevent: "Use public transport, maintain vehicles, avoid burning waste." },
   { id: "water", title: "Water Pollution", icon: Droplet, blurb: "Contamination of rivers, lakes, and groundwater by waste and chemicals.", causes: "Industrial effluent, untreated sewage, agricultural runoff, littering.", impact: "Unsafe drinking water, harm to aquatic life, spread of disease.", prevent: "Never dump waste in water bodies, treat effluent before discharge." },
@@ -123,16 +57,14 @@ const POLLUTION_INFO = [
   { id: "soil", title: "Soil Pollution", icon: Sprout, blurb: "Degradation of soil quality from chemicals and improper waste disposal.", causes: "Pesticides, industrial waste dumping, plastic accumulation.", impact: "Reduced fertility, contaminated crops, groundwater seepage.", prevent: "Proper waste segregation, responsible pesticide use, composting." },
   { id: "plastic", title: "Plastic Pollution", icon: Recycle, blurb: "Accumulation of non-biodegradable plastic in the environment.", causes: "Single-use plastics, poor waste management, littering.", impact: "Clogged drains, harm to animals, microplastics in food chains.", prevent: "Carry reusable bags, avoid single-use plastic, recycle properly." },
   { id: "waste", title: "Waste Pollution", icon: Trash2, blurb: "Improper handling and disposal of household and municipal waste.", causes: "Mixed waste streams, illegal dumping, inadequate collection.", impact: "Breeding ground for disease, land and water contamination.", prevent: "Segregate wet and dry waste, follow local collection schedules." },
-  { id: "industrial", title: "Industrial Pollution", icon: Factory, blurb: "Pollution generated directly from manufacturing and industrial activity.", causes: "Unregulated emissions, effluent discharge, hazardous waste.", impact: "Severe local air and water contamination, health hazards for workers and residents.", prevent: "Enforce compliance, adopt cleaner technology, regular audits." },
+  { id: "industrial", title: "Industrial Pollution", icon: Factory, blurb: "Pollution generated directly from manufacturing and industrial activity.", causes: "Unregulated emissions, effluent discharge, hazardous waste.", impact: "Severe local air and water contamination, health hazards.", prevent: "Enforce compliance, adopt cleaner technology, regular audits." },
 ];
-
 const HOW_TO_HELP = [
   { id: "air", title: "Reduce Air Pollution", icon: Wind, tips: ["Use public transport where possible", "Avoid unnecessary vehicle idling", "Maintain vehicles properly", "Prefer walking or cycling for short trips"] },
   { id: "water", title: "Reduce Water Pollution", icon: Droplet, tips: ["Do not dump waste into water bodies", "Dispose of chemicals responsibly", "Avoid littering near rivers, lakes, and drains"] },
   { id: "waste", title: "Reduce Waste", icon: Trash2, tips: ["Separate wet and dry waste", "Reuse materials where possible", "Reduce unnecessary plastic use", "Follow local waste collection rules"] },
   { id: "noise", title: "Reduce Noise Pollution", icon: Volume2, tips: ["Avoid unnecessary honking", "Keep sound levels reasonable", "Follow local restrictions on loudspeakers"] },
 ];
-
 const ARTICLES = [
   { id: 1, title: "What is Air Pollution?", tag: "Air", icon: Wind, facts: "Vehicles and industry are the two largest urban contributors.", tip: "Check your city's AQI before outdoor activity on high-pollution days." },
   { id: 2, title: "Understanding AQI", tag: "Air", icon: BarChart3, facts: "AQI above 200 is considered unhealthy for the general public.", tip: "An AQI below 50 is classified as good air quality." },
@@ -145,7 +77,6 @@ const ARTICLES = [
   { id: 9, title: "Sustainable Transportation", tag: "Air", icon: Car, facts: "Shifting short trips to cycling can cut local emissions notably.", tip: "Combine errands into a single trip to cut unnecessary driving." },
   { id: 10, title: "The Role of Citizens in Pollution Control", tag: "Community", icon: ShieldCheck, facts: "Civic participation is a core pillar of environmental governance.", tip: "Encourage neighbours to use the grievance portal too." },
 ];
-
 const QUIZ = [
   { q: "Which type of waste should generally be separated from recyclable dry waste?", options: ["Wet/organic waste", "Cardboard", "Glass bottles", "Metal cans"], a: 0, ex: "Wet or organic waste decomposes and contaminates recyclables, so it is collected separately." },
   { q: "What does AQI stand for?", options: ["Air Quality Index", "Annual Quality Inspection", "Atmospheric Quantity Indicator", "Air Quota Index"], a: 0, ex: "AQI (Air Quality Index) is a standard scale used to report how polluted the air currently is." },
@@ -154,12 +85,11 @@ const QUIZ = [
   { q: "Which action helps reduce noise pollution in a neighbourhood?", options: ["Idling vehicles longer", "Following restrictions on loudspeaker use", "Using more machinery at night", "Ignoring local by-laws"], a: 1, ex: "Respecting local restrictions on loudspeakers and quiet hours directly reduces community noise levels." },
   { q: "Why is citizen reporting important for pollution control?", options: ["It has no real effect", "It helps municipal bodies detect and act on issues faster", "It replaces the need for regulation", "It is only useful for large factories"], a: 1, ex: "Citizen reports give municipal bodies real-time, localised information they would otherwise miss." },
 ];
-
 const STAT_INDICATORS = [
-  { label: "Air Quality Index (Nashik, sample)", value: 96, max: 300, unit: "", good: "moderate" },
-  { label: "Water Quality Indicator", value: 72, max: 100, unit: "%", good: "fair" },
-  { label: "Waste Recycled vs Generated", value: 58, max: 100, unit: "%", good: "improving" },
-  { label: "Green Cover", value: 34, max: 100, unit: "%", good: "steady" },
+  { label: "Air Quality Index (Nashik, sample)", value: 96, max: 300, unit: "" },
+  { label: "Water Quality Indicator", value: 72, max: 100, unit: "%" },
+  { label: "Waste Recycled vs Generated", value: 58, max: 100, unit: "%" },
+  { label: "Green Cover", value: 34, max: 100, unit: "%" },
 ];
 
 /* ---------------------------------------------------------------------- */
@@ -182,26 +112,17 @@ function Badge({ status }) {
     </span>
   );
 }
-
 function PriorityDot({ p }) {
   const c = p === "High" ? T.clay : p === "Medium" ? "#B08D2E" : T.moss;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: c, fontWeight: 600 }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: c, display: "inline-block" }} />
-      {p} priority
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: c, display: "inline-block" }} /> {p} priority
     </span>
   );
 }
-
 function Card({ children, style, ...rest }) {
-  return (
-    <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 14, ...style }} {...rest}>
-      {children}
-    </div>
-  );
+  return <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 14, ...style }} {...rest}>{children}</div>;
 }
-
-/* Timeline — the "river" signature element */
 function TimelineRiver({ timeline }) {
   return (
     <div style={{ position: "relative", paddingLeft: 28 }}>
@@ -217,9 +138,21 @@ function TimelineRiver({ timeline }) {
     </div>
   );
 }
+function EmptyState({ icon: Icon, title, body }) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 20px", color: T.faint }}>
+      <Icon size={34} color={T.line} />
+      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: T.ink, margin: "14px 0 6px" }}>{title}</div>
+      <div style={{ fontSize: 13.5, maxWidth: 340, margin: "0 auto" }}>{body}</div>
+    </div>
+  );
+}
+const btnPrimary = { display: "inline-flex", alignItems: "center", gap: 8, background: T.forest, color: "#fff", border: "none", padding: "13px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: FONT_BODY };
+const btnGhost = { display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: T.ink, border: `1.5px solid ${T.line}`, padding: "13px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: FONT_BODY };
+const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 9, border: `1.5px solid ${T.line}`, fontSize: 14, fontFamily: FONT_BODY, background: "#fff", color: T.ink, outline: "none" };
 
 /* ---------------------------------------------------------------------- */
-/* Landing page                                                            */
+/* Landing                                                                 */
 /* ---------------------------------------------------------------------- */
 function Gauge({ value = 96, max = 300 }) {
   const pct = Math.min(value / max, 1);
@@ -227,23 +160,13 @@ function Gauge({ value = 96, max = 300 }) {
   return (
     <svg width="200" height="200" viewBox="0 0 200 200">
       <circle cx="100" cy="100" r={r} fill="none" stroke="#E4E9E0" strokeWidth="16" />
-      <circle
-        cx="100" cy="100" r={r} fill="none" stroke={T.forest} strokeWidth="16" strokeLinecap="round"
-        strokeDasharray={`${c * pct} ${c}`} transform="rotate(-90 100 100)"
-      />
+      <circle cx="100" cy="100" r={r} fill="none" stroke={T.forest} strokeWidth="16" strokeLinecap="round" strokeDasharray={`${c * pct} ${c}`} transform="rotate(-90 100 100)" />
       <text x="100" y="96" textAnchor="middle" fontSize="34" fontWeight="700" fill={T.ink} fontFamily={FONT_DISPLAY}>{value}</text>
       <text x="100" y="120" textAnchor="middle" fontSize="12" fill={T.faint} fontFamily={FONT_BODY}>AQI · sample</text>
     </svg>
   );
 }
-
 function Landing({ onEnter }) {
-  const stats = [
-    { label: "Complaints resolved this year", value: "3,240+" },
-    { label: "Average resolution time", value: "6.4 days" },
-    { label: "Active wards covered", value: "38" },
-    { label: "Citizen reports this month", value: "512" },
-  ];
   const steps = [
     { n: "Report", d: "Citizen reports a local pollution issue with location and evidence.", icon: FileText },
     { n: "Review", d: "Municipal officials review and assign the complaint to a department.", icon: Search },
@@ -252,33 +175,20 @@ function Landing({ onEnter }) {
   ];
   return (
     <div>
-      {/* Hero */}
       <section style={{ padding: "72px 24px 56px", maxWidth: 1180, margin: "0 auto", display: "flex", gap: 48, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 460px", minWidth: 300 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#E5EEE7", color: T.forest, padding: "6px 14px", borderRadius: 20, fontSize: 12.5, fontWeight: 700, letterSpacing: 0.3 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#E5EEE7", color: T.forest, padding: "6px 14px", borderRadius: 20, fontSize: 12.5, fontWeight: 700 }}>
             <Leaf size={14} /> Nashik Municipal Corporation
           </div>
           <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "clamp(34px, 5vw, 54px)", lineHeight: 1.06, color: T.ink, margin: "20px 0 18px", fontWeight: 700 }}>
             Report pollution.<br />Protect your community.
           </h1>
-          <p style={{ fontSize: 17, color: "#41504A", maxWidth: 480, lineHeight: 1.6, marginBottom: 30, fontFamily: FONT_BODY }}>
+          <p style={{ fontSize: 17, color: "#41504A", maxWidth: 480, lineHeight: 1.6, marginBottom: 30 }}>
             Report local pollution issues, track municipal action, and learn how you can contribute to a cleaner and healthier environment.
           </p>
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-            <button onClick={() => onEnter("citizen", "report")} style={btnPrimary}>
-              Raise a Complaint <ArrowRight size={16} />
-            </button>
-            <button onClick={() => onEnter("citizen", "awareness")} style={btnGhost}>
-              Explore Awareness
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 28, marginTop: 42, flexWrap: "wrap" }}>
-            {stats.map((s) => (
-              <div key={s.label}>
-                <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: 700, color: T.forest }}>{s.value}</div>
-                <div style={{ fontSize: 12.5, color: T.faint, maxWidth: 120 }}>{s.label}</div>
-              </div>
-            ))}
+            <button onClick={() => onEnter("citizen", "report")} style={btnPrimary}>Raise a Complaint <ArrowRight size={16} /></button>
+            <button onClick={() => onEnter("citizen", "awareness")} style={btnGhost}>Explore Awareness</button>
           </div>
         </div>
         <div style={{ flex: "0 0 auto", margin: "0 auto" }}>
@@ -288,32 +198,23 @@ function Landing({ onEnter }) {
           </Card>
         </div>
       </section>
-
-      {/* How it works */}
       <section style={{ background: T.paper, padding: "56px 24px", borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}` }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 28, color: T.ink, marginBottom: 8 }}>How it works</h2>
           <p style={{ color: T.faint, marginBottom: 32 }}>From report to resolution, in four steps.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 20 }}>
-            {steps.map((s, i) => (
-              <div key={s.n} style={{ position: "relative" }}>
-                <Card style={{ padding: 22, height: "100%" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#E5EEE7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
-                    <s.icon size={19} color={T.forest} />
-                  </div>
-                  <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 17, color: T.ink, marginBottom: 6 }}>{s.n}</div>
-                  <div style={{ fontSize: 13.5, color: "#41504A", lineHeight: 1.5 }}>{s.d}</div>
-                </Card>
-                {i < steps.length - 1 && (
-                  <ChevronRight size={20} color={T.line} style={{ position: "absolute", right: -26, top: "42%", display: window.innerWidth > 900 ? "block" : "none" }} />
-                )}
-              </div>
+            {steps.map((s) => (
+              <Card key={s.n} style={{ padding: 22 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#E5EEE7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                  <s.icon size={19} color={T.forest} />
+                </div>
+                <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 17, color: T.ink, marginBottom: 6 }}>{s.n}</div>
+                <div style={{ fontSize: 13.5, color: "#41504A", lineHeight: 1.5 }}>{s.d}</div>
+              </Card>
             ))}
           </div>
         </div>
       </section>
-
-      {/* Entry cards */}
       <section style={{ padding: "56px 24px", maxWidth: 1180, margin: "0 auto" }}>
         <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 28, color: T.ink, marginBottom: 28 }}>Choose how you'd like to enter</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px,1fr))", gap: 20 }}>
@@ -323,7 +224,7 @@ function Landing({ onEnter }) {
             <p style={{ fontSize: 13.5, color: T.faint, marginBottom: 16 }}>Report issues, track complaints, and browse the awareness library.</p>
             <span style={{ color: T.forest, fontWeight: 700, fontSize: 13.5, display: "inline-flex", alignItems: "center", gap: 6 }}>Enter as citizen <ArrowRight size={14} /></span>
           </Card>
-          <Card style={{ padding: 28, cursor: "pointer" }} onClick={() => onEnter("municipal", "dashboard")}>
+          <Card style={{ padding: 28, cursor: "pointer" }} onClick={() => onEnter("official", "dashboard")}>
             <Building2 size={22} color={T.sky} />
             <h3 style={{ fontFamily: FONT_DISPLAY, fontSize: 19, margin: "14px 0 8px" }}>Municipal Corporation Portal</h3>
             <p style={{ fontSize: 13.5, color: T.faint, marginBottom: 16 }}>Review grievances, assign departments, and monitor analytics.</p>
@@ -335,11 +236,8 @@ function Landing({ onEnter }) {
   );
 }
 
-const btnPrimary = { display: "inline-flex", alignItems: "center", gap: 8, background: T.forest, color: "#fff", border: "none", padding: "13px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: FONT_BODY };
-const btnGhost = { display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: T.ink, border: `1.5px solid ${T.line}`, padding: "13px 22px", borderRadius: 10, fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: FONT_BODY };
-
 /* ---------------------------------------------------------------------- */
-/* Auth: Sign up / Log in                                                  */
+/* Auth — now wired to real Supabase sign-up / login                      */
 /* ---------------------------------------------------------------------- */
 function AuthField({ label, icon: Icon, error, children }) {
   return (
@@ -354,14 +252,16 @@ function AuthField({ label, icon: Icon, error, children }) {
   );
 }
 
-function AuthForm({ role, onSubmit, onBack }) {
-  const [mode, setMode] = useState("signup"); // 'signup' | 'login'
+function AuthForm({ role, onAuthenticated, onBack }) {
+  const [mode, setMode] = useState("signup");
   const [form, setForm] = useState({
     name: "", email: "", phone: "", password: "", area: "",
     employeeId: "", designation: DESIGNATIONS[0], department: DEPARTMENTS[0], wards: "",
   });
   const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState(null); // holds the submitted profile while the confirmation shows
+  const [serverError, setServerError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(null);
   const isCitizen = role === "citizen";
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -377,21 +277,45 @@ function AuthForm({ role, onSubmit, onBack }) {
     return e;
   }
 
-  function handleSubmit(ev) {
+  async function handleSubmit(ev) {
     ev.preventDefault();
+    setServerError("");
     const e = validate();
     setErrors(e);
     if (Object.keys(e).length) return;
-    const profile = {
-      name: form.name.trim() || (isCitizen ? "Citizen" : "Municipal Official"),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      ...(isCitizen ? { area: form.area.trim() } : {
-        employeeId: form.employeeId.trim(), designation: form.designation,
-        department: form.department, wards: form.wards.trim(),
-      }),
-    };
-    setSuccess(profile);
+    setBusy(true);
+
+    if (mode === "signup") {
+      const { data, error } = await supabase.auth.signUp({ email: form.email.trim(), password: form.password });
+      if (error) { setServerError(error.message); setBusy(false); return; }
+      const userId = data.user?.id;
+      if (!userId) { setServerError("Could not create account — try logging in instead."); setBusy(false); return; }
+
+      const profileRow = {
+        id: userId,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        role,
+        area: isCitizen ? form.area.trim() : null,
+        employee_id: isCitizen ? null : form.employeeId.trim(),
+        designation: isCitizen ? null : form.designation,
+        department: isCitizen ? null : form.department,
+        wards: isCitizen ? null : form.wards.trim(),
+      };
+      const { error: profileError } = await supabase.from("profiles").insert(profileRow);
+      setBusy(false);
+      if (profileError) { setServerError(profileError.message); return; }
+      setSuccess(profileRow);
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: form.email.trim(), password: form.password });
+      if (error) { setServerError(error.message); setBusy(false); return; }
+      const { data: profileRow, error: profileError } = await supabase
+        .from("profiles").select("*").eq("id", data.user.id).single();
+      setBusy(false);
+      if (profileError) { setServerError("Signed in, but couldn't load your profile."); return; }
+      setSuccess(profileRow);
+    }
   }
 
   if (success) {
@@ -407,7 +331,7 @@ function AuthForm({ role, onSubmit, onBack }) {
           <p style={{ color: T.faint, fontSize: 13.5, marginBottom: 24 }}>
             Welcome{success.name ? `, ${success.name.split(" ")[0]}` : ""} — taking you to your {isCitizen ? "citizen" : "municipal"} dashboard.
           </p>
-          <button style={{ ...btnPrimary, width: "100%", justifyContent: "center" }} onClick={() => onSubmit(success)}>
+          <button style={{ ...btnPrimary, width: "100%", justifyContent: "center" }} onClick={() => onAuthenticated(success)}>
             Continue <ArrowRight size={15} />
           </button>
         </Card>
@@ -430,17 +354,20 @@ function AuthForm({ role, onSubmit, onBack }) {
         <p style={{ fontSize: 13, color: T.faint, marginBottom: 20 }}>
           {isCitizen ? "Sign up or log in to report issues and track complaints." : "Officials sign in with their municipal credentials."}
         </p>
-
         <div style={{ display: "flex", gap: 6, marginBottom: 22, background: T.paper, padding: 4, borderRadius: 10 }}>
           {["signup", "login"].map((m) => (
-            <button key={m} onClick={() => setMode(m)} style={{
-              flex: 1, padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: FONT_BODY,
+            <button key={m} onClick={() => { setMode(m); setServerError(""); }} style={{
+              flex: 1, padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
               background: mode === m ? "#fff" : "transparent", color: mode === m ? T.ink : T.faint, boxShadow: mode === m ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-            }}>
-              {m === "signup" ? "Create account" : "Log in"}
-            </button>
+            }}>{m === "signup" ? "Create account" : "Log in"}</button>
           ))}
         </div>
+
+        {serverError && (
+          <div style={{ background: "#FBEEE2", color: T.clay, fontSize: 12.5, fontWeight: 600, padding: "10px 14px", borderRadius: 9, marginBottom: 16 }}>
+            {serverError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           {mode === "signup" && (
@@ -463,7 +390,6 @@ function AuthForm({ role, onSubmit, onBack }) {
               <input style={{ ...inputStyle, paddingLeft: 34 }} value={form.area} onChange={set("area")} placeholder="e.g. Panchavati, Ward 9" />
             </AuthField>
           )}
-
           {mode === "signup" && !isCitizen && (
             <>
               <AuthField label="Employee ID" icon={Briefcase} error={errors.employeeId}>
@@ -491,12 +417,14 @@ function AuthForm({ role, onSubmit, onBack }) {
             </>
           )}
 
-          <button type="submit" style={{ ...btnPrimary, width: "100%", justifyContent: "center", marginTop: 6 }}>
-            {mode === "signup" ? "Create account" : "Log in"} <ArrowRight size={15} />
+          <button type="submit" disabled={busy} style={{ ...btnPrimary, width: "100%", justifyContent: "center", marginTop: 6, opacity: busy ? 0.7 : 1 }}>
+            {busy ? <Loader2 size={15} className="spin" /> : null}
+            {busy ? "Please wait..." : mode === "signup" ? "Create account" : "Log in"}
+            {!busy && <ArrowRight size={15} />}
           </button>
         </form>
         <p style={{ fontSize: 11.5, color: T.faint, marginTop: 16, textAlign: "center" }}>
-          Demo portal — details are kept only for this session and are not stored anywhere.
+          Your details are stored securely in the project's database.
         </p>
       </Card>
     </div>
@@ -504,11 +432,14 @@ function AuthForm({ role, onSubmit, onBack }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Citizen: Report form                                                    */
+/* Citizen: Report form — now uploads evidence and inserts a real row     */
 /* ---------------------------------------------------------------------- */
-function ReportForm({ onSubmit }) {
-  const [form, setForm] = useState({ title: "", category: "", description: "", location: "", priority: "Medium", evidence: false });
+function ReportForm({ onSubmit, userId }) {
+  const [form, setForm] = useState({ title: "", category: "", description: "", location: "", priority: "Medium" });
+  const [file, setFile] = useState(null);
   const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState("");
   const [confirmedId, setConfirmedId] = useState(null);
 
   function validate() {
@@ -520,14 +451,19 @@ function ReportForm({ onSubmit }) {
     return e;
   }
 
-  function handleSubmit(ev) {
+  async function handleSubmit(ev) {
     ev.preventDefault();
     const e = validate();
     setErrors(e);
     if (Object.keys(e).length) return;
-    const id = onSubmit(form);
-    setConfirmedId(id);
-    setForm({ title: "", category: "", description: "", location: "", priority: "Medium", evidence: false });
+    setBusy(true);
+    setServerError("");
+    const result = await onSubmit(form, file);
+    setBusy(false);
+    if (result.error) { setServerError(result.error); return; }
+    setConfirmedId(result.code);
+    setForm({ title: "", category: "", description: "", location: "", priority: "Medium" });
+    setFile(null);
   }
 
   if (confirmedId) {
@@ -537,7 +473,7 @@ function ReportForm({ onSubmit }) {
           <CheckCircle2 size={28} color={T.forest} />
         </div>
         <h3 style={{ fontFamily: FONT_DISPLAY, fontSize: 21, margin: "0 0 8px" }}>Complaint submitted successfully</h3>
-        <p style={{ color: T.faint, marginBottom: 18 }}>You'll be notified as officials act on it.</p>
+        <p style={{ color: T.faint, marginBottom: 18 }}>It's now saved and visible to municipal officials.</p>
         <div style={{ background: T.paper, borderRadius: 10, padding: "12px 18px", fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 17, color: T.forest, display: "inline-block" }}>
           Complaint ID: {confirmedId}
         </div>
@@ -552,87 +488,76 @@ function ReportForm({ onSubmit }) {
     <div style={{ maxWidth: 640, margin: "0 auto" }}>
       <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: T.ink, marginBottom: 4 }}>Raise a complaint</h2>
       <p style={{ color: T.faint, marginBottom: 24, fontSize: 14 }}>Tell us what's happening and where — the more detail, the faster we can act.</p>
+      {serverError && (
+        <div style={{ background: "#FBEEE2", color: T.clay, fontSize: 12.5, fontWeight: 600, padding: "10px 14px", borderRadius: 9, marginBottom: 16 }}>{serverError}</div>
+      )}
       <form onSubmit={handleSubmit}>
-        <Field label="Complaint title" error={errors.title}>
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Complaint title</label>
           <input style={inputStyle} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Garbage dumping near riverside park" />
-        </Field>
+          {errors.title && <div style={{ color: T.clay, fontSize: 12.5, marginTop: 5 }}>{errors.title}</div>}
+        </div>
 
-        <Field label="Pollution category" error={errors.category}>
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Pollution category</label>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px,1fr))", gap: 8 }}>
             {CATEGORIES.map((c) => (
               <button type="button" key={c.id} onClick={() => setForm({ ...form, category: c.id })}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
-                  border: `1.5px solid ${form.category === c.id ? T.forest : T.line}`,
-                  background: form.category === c.id ? "#E5EEE7" : "#fff", color: form.category === c.id ? T.forest : T.ink,
-                }}>
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${form.category === c.id ? T.forest : T.line}`, background: form.category === c.id ? "#E5EEE7" : "#fff", color: form.category === c.id ? T.forest : T.ink }}>
                 <c.icon size={14} /> {c.label}
               </button>
             ))}
           </div>
-        </Field>
+          {errors.category && <div style={{ color: T.clay, fontSize: 12.5, marginTop: 5 }}>{errors.category}</div>}
+        </div>
 
-        <Field label="Detailed description" error={errors.description}>
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Detailed description</label>
           <textarea style={{ ...inputStyle, minHeight: 100, resize: "vertical" }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe what you observed, how often, and any impact on residents..." />
-        </Field>
+          {errors.description && <div style={{ color: T.clay, fontSize: 12.5, marginTop: 5 }}>{errors.description}</div>}
+        </div>
 
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 260px" }}>
-            <Field label="Location" error={errors.location}>
-              <div style={{ position: "relative" }}>
-                <MapPin size={15} color={T.faint} style={{ position: "absolute", left: 12, top: 13 }} />
-                <input style={{ ...inputStyle, paddingLeft: 34 }} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Street, landmark, or ward" />
-              </div>
-            </Field>
+          <div style={{ flex: "1 1 260px", marginBottom: 18 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Location</label>
+            <div style={{ position: "relative" }}>
+              <MapPin size={15} color={T.faint} style={{ position: "absolute", left: 12, top: 13 }} />
+              <input style={{ ...inputStyle, paddingLeft: 34 }} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Street, landmark, or ward" />
+            </div>
+            {errors.location && <div style={{ color: T.clay, fontSize: 12.5, marginTop: 5 }}>{errors.location}</div>}
           </div>
-          <div style={{ flex: "1 1 160px" }}>
-            <Field label="Priority / severity">
-              <select style={inputStyle} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-                <option>Low</option><option>Medium</option><option>High</option>
-              </select>
-            </Field>
+          <div style={{ flex: "1 1 160px", marginBottom: 18 }}>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Priority / severity</label>
+            <select style={inputStyle} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              <option>Low</option><option>Medium</option><option>High</option>
+            </select>
           </div>
         </div>
 
-        <Field label="Evidence (optional)">
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Evidence (optional)</label>
           <label style={{ display: "flex", alignItems: "center", gap: 10, border: `1.5px dashed ${T.line}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer", fontSize: 13.5, color: T.faint }}>
             <Upload size={16} />
-            {form.evidence ? "1 file attached (demo)" : "Attach a photo or video of the issue"}
-            <input type="checkbox" style={{ display: "none" }} checked={form.evidence} onChange={(e) => setForm({ ...form, evidence: e.target.checked })} />
-            <span style={{ marginLeft: "auto", color: T.forest, fontWeight: 700 }} onClick={(e) => { e.preventDefault(); setForm((f) => ({ ...f, evidence: !f.evidence })); }}>
-              {form.evidence ? "Remove" : "Choose file"}
-            </span>
+            {file ? file.name : "Attach a photo or video of the issue"}
+            <input type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
           </label>
-        </Field>
+        </div>
 
-        <button type="submit" style={{ ...btnPrimary, width: "100%", justifyContent: "center", marginTop: 8, padding: "14px 22px" }}>
-          <Send size={16} /> Submit Complaint
+        <button type="submit" disabled={busy} style={{ ...btnPrimary, width: "100%", justifyContent: "center", marginTop: 8, padding: "14px 22px", opacity: busy ? 0.7 : 1 }}>
+          {busy ? "Submitting..." : <>Submit Complaint <Send size={16} /></>}
         </button>
       </form>
     </div>
   );
 }
 
-function Field({ label, error, children }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.ink, marginBottom: 6 }}>{label}</label>
-      {children}
-      {error && <div style={{ color: T.clay, fontSize: 12.5, marginTop: 5, display: "flex", alignItems: "center", gap: 5 }}><CircleAlert size={13} />{error}</div>}
-    </div>
-  );
-}
-
-const inputStyle = { width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 9, border: `1.5px solid ${T.line}`, fontSize: 14, fontFamily: FONT_BODY, background: "#fff", color: T.ink, outline: "none" };
-
 /* ---------------------------------------------------------------------- */
-/* Citizen: My complaints                                                  */
+/* Citizen: My complaints / Notifications (presentational, real data)      */
 /* ---------------------------------------------------------------------- */
 function MyComplaints({ complaints }) {
   const [openId, setOpenId] = useState(complaints[0]?.id || null);
-  if (!complaints.length) {
-    return <EmptyState icon={FileText} title="No complaints yet" body="Complaints you raise will appear here, with live status tracking." />;
-  }
+  if (!complaints.length) return <EmptyState icon={FileText} title="No complaints yet" body="Complaints you raise will appear here, with live status tracking." />;
   return (
     <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: T.ink, marginBottom: 20 }}>My complaints</h2>
@@ -649,18 +574,18 @@ function MyComplaints({ complaints }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14.5, color: T.ink, marginBottom: 3 }}>{c.title}</div>
                   <div style={{ fontSize: 12.5, color: T.faint, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span>{c.id}</span><span>·</span><span>{fmt(c.createdAt)}</span><span>·</span><span>{c.location}</span>
+                    <span>{c.code}</span><span>·</span><span>{fmt(c.createdAt)}</span><span>·</span><span>{c.location}</span>
                   </div>
                 </div>
                 <Badge status={c.status} />
-                <ChevronDown size={18} color={T.faint} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+                <ChevronDown size={18} color={T.faint} style={{ transform: open ? "rotate(180deg)" : "none" }} />
               </div>
               {open && (
                 <div style={{ padding: "0 18px 22px", borderTop: `1px solid ${T.line}`, paddingTop: 18 }}>
                   <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 18, fontSize: 13 }}>
-                    <span><PriorityDot p={c.priority} /></span>
+                    <PriorityDot p={c.priority} />
                     <span style={{ color: T.faint }}>Department: <b style={{ color: T.ink }}>{c.department}</b></span>
-                    <span style={{ color: T.faint }}>Evidence: <b style={{ color: T.ink }}>{c.hasEvidence ? "Attached" : "None"}</b></span>
+                    {c.evidenceUrl && <a href={c.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: T.sky, fontWeight: 700 }}>View evidence</a>}
                   </div>
                   <p style={{ fontSize: 13.5, color: "#41504A", marginBottom: 20 }}>{c.description}</p>
                   <TimelineRiver timeline={c.timeline} />
@@ -673,24 +598,8 @@ function MyComplaints({ complaints }) {
     </div>
   );
 }
-
-function EmptyState({ icon: Icon, title, body }) {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 20px", color: T.faint }}>
-      <Icon size={34} color={T.line} />
-      <div style={{ fontFamily: FONT_DISPLAY, fontSize: 18, color: T.ink, margin: "14px 0 6px" }}>{title}</div>
-      <div style={{ fontSize: 13.5, maxWidth: 340, margin: "0 auto" }}>{body}</div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Citizen: Notifications                                                  */
-/* ---------------------------------------------------------------------- */
 function Notifications({ notifications, onRead }) {
-  if (!notifications.length) {
-    return <EmptyState icon={Bell} title="No notifications yet" body="You'll see updates here whenever officials act on your complaints." />;
-  }
+  if (!notifications.length) return <EmptyState icon={Bell} title="No notifications yet" body="You'll see updates here whenever officials act on your complaints." />;
   return (
     <div style={{ maxWidth: 680, margin: "0 auto" }}>
       <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: T.ink, marginBottom: 20 }}>Notifications</h2>
@@ -699,7 +608,7 @@ function Notifications({ notifications, onRead }) {
           <Card key={n.id} onClick={() => onRead(n.id)} style={{ padding: 16, cursor: "pointer", background: n.read ? "#fff" : "#F4F8F3", display: "flex", gap: 12 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? "transparent" : T.forest, marginTop: 6, flexShrink: 0 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink, marginBottom: 3 }}>{n.complaintId} updated</div>
+              <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink, marginBottom: 3 }}>Complaint updated</div>
               <div style={{ fontSize: 13, color: "#41504A", marginBottom: 5 }}>{n.message}</div>
               <div style={{ fontSize: 11.5, color: T.faint }}>{fmt(n.date)} · {fmtTime(n.date)}</div>
             </div>
@@ -711,15 +620,13 @@ function Notifications({ notifications, onRead }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Citizen: Awareness                                                      */
+/* Awareness hub (unchanged, static content)                               */
 /* ---------------------------------------------------------------------- */
 function AwarenessHub() {
   const [tab, setTab] = useState("overview");
   const tabs = [
-    { id: "overview", label: "Overview", icon: LayoutGrid },
-    { id: "stats", label: "Statistics", icon: BarChart3 },
-    { id: "help", label: "How Can You Help?", icon: Sprout },
-    { id: "articles", label: "Articles", icon: BookOpen },
+    { id: "overview", label: "Overview", icon: LayoutGrid }, { id: "stats", label: "Statistics", icon: BarChart3 },
+    { id: "help", label: "How Can You Help?", icon: Sprout }, { id: "articles", label: "Articles", icon: BookOpen },
     { id: "quiz", label: "Quiz", icon: Award },
   ];
   return (
@@ -728,11 +635,8 @@ function AwarenessHub() {
       <p style={{ color: T.faint, marginBottom: 22, fontSize: 14 }}>Learn about pollution and how you can help keep your city clean.</p>
       <div style={{ display: "flex", gap: 6, marginBottom: 26, flexWrap: "wrap", borderBottom: `1px solid ${T.line}`, paddingBottom: 4 }}>
         {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 9, border: "none", cursor: "pointer",
-            fontWeight: 700, fontSize: 13, fontFamily: FONT_BODY,
-            background: tab === t.id ? T.forest : "transparent", color: tab === t.id ? "#fff" : T.faint,
-          }}>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+            background: tab === t.id ? T.forest : "transparent", color: tab === t.id ? "#fff" : T.faint }}>
             <t.icon size={14} /> {t.label}
           </button>
         ))}
@@ -745,7 +649,6 @@ function AwarenessHub() {
     </div>
   );
 }
-
 function PollutionOverview() {
   const [open, setOpen] = useState(null);
   return (
@@ -775,7 +678,6 @@ function PollutionOverview() {
     </div>
   );
 }
-
 function StatsSection() {
   return (
     <div>
@@ -799,7 +701,6 @@ function StatsSection() {
     </div>
   );
 }
-
 function HowCanYouHelp() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px,1fr))", gap: 16 }}>
@@ -819,7 +720,6 @@ function HowCanYouHelp() {
     </div>
   );
 }
-
 function ArticleLibrary() {
   const [openId, setOpenId] = useState(null);
   return (
@@ -850,27 +750,14 @@ function ArticleLibrary() {
     </div>
   );
 }
-
 function Quiz() {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
-
-  function choose(i) {
-    if (selected !== null) return;
-    setSelected(i);
-    if (i === QUIZ[step].a) setScore((s) => s + 1);
-  }
-  function next() {
-    if (step === QUIZ.length - 1) { setDone(true); return; }
-    setStep((s) => s + 1);
-    setSelected(null);
-  }
-  function restart() {
-    setStep(0); setSelected(null); setScore(0); setDone(false);
-  }
-
+  function choose(i) { if (selected !== null) return; setSelected(i); if (i === QUIZ[step].a) setScore((s) => s + 1); }
+  function next() { if (step === QUIZ.length - 1) { setDone(true); return; } setStep((s) => s + 1); setSelected(null); }
+  function restart() { setStep(0); setSelected(null); setScore(0); setDone(false); }
   if (done) {
     return (
       <Card style={{ padding: 40, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
@@ -882,7 +769,6 @@ function Quiz() {
       </Card>
     );
   }
-
   const q = QUIZ[step];
   return (
     <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -890,7 +776,7 @@ function Quiz() {
         <span>Question {step + 1} of {QUIZ.length}</span><span>Score: {score}</span>
       </div>
       <div style={{ height: 6, borderRadius: 6, background: T.paper, marginBottom: 22, overflow: "hidden" }}>
-        <div style={{ width: `${((step) / QUIZ.length) * 100}%`, height: "100%", background: T.forest, transition: "width .2s" }} />
+        <div style={{ width: `${(step / QUIZ.length) * 100}%`, height: "100%", background: T.forest }} />
       </div>
       <Card style={{ padding: 24 }}>
         <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 17, marginBottom: 18, lineHeight: 1.4 }}>{q.q}</div>
@@ -902,17 +788,13 @@ function Quiz() {
               else if (i === selected) { bg = "#FBEEE2"; border = T.clay; color = T.clay; }
             }
             return (
-              <button key={i} onClick={() => choose(i)} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 9, border: `1.5px solid ${border}`, background: bg, color, cursor: selected === null ? "pointer" : "default", fontSize: 13.5, fontWeight: 600, fontFamily: FONT_BODY }}>
+              <button key={i} onClick={() => choose(i)} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 9, border: `1.5px solid ${border}`, background: bg, color, cursor: selected === null ? "pointer" : "default", fontSize: 13.5, fontWeight: 600 }}>
                 {o}
               </button>
             );
           })}
         </div>
-        {selected !== null && (
-          <div style={{ marginTop: 16, padding: 14, background: T.paper, borderRadius: 9, fontSize: 13, color: "#41504A" }}>
-            {q.ex}
-          </div>
-        )}
+        {selected !== null && <div style={{ marginTop: 16, padding: 14, background: T.paper, borderRadius: 9, fontSize: 13, color: "#41504A" }}>{q.ex}</div>}
         {selected !== null && (
           <button style={{ ...btnPrimary, marginTop: 16, width: "100%", justifyContent: "center" }} onClick={next}>
             {step === QUIZ.length - 1 ? "See score" : "Next question"}
@@ -924,36 +806,23 @@ function Quiz() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Municipal: Dashboard                                                    */
+/* Municipal dashboard (unchanged, real data)                              */
 /* ---------------------------------------------------------------------- */
 const PIE_COLORS = [T.faint, T.clay, T.sky, T.sky, T.forest, T.forestDark];
-
 function MunicipalDashboard({ complaints }) {
   const total = complaints.length;
-  const counts = useMemo(() => {
-    const c = {};
-    STATUS_FLOW.forEach((s) => (c[s] = 0));
-    complaints.forEach((x) => c[x.status]++);
-    return c;
-  }, [complaints]);
+  const counts = useMemo(() => { const c = {}; STATUS_FLOW.forEach((s) => (c[s] = 0)); complaints.forEach((x) => c[x.status]++); return c; }, [complaints]);
   const highPriority = complaints.filter((c) => c.priority === "High").length;
-
-  const categoryData = useMemo(() => CATEGORIES.filter(c => c.id !== 'other').map((c) => ({
+  const categoryData = useMemo(() => CATEGORIES.filter((c) => c.id !== "other").map((c) => ({
     name: c.label.replace(" Pollution", "").replace(" & Garbage", ""),
     count: complaints.filter((x) => x.category === c.id).length,
-  })).filter(d => d.count > 0 || true), [complaints]);
-
+  })), [complaints]);
   const pieData = STATUS_FLOW.map((s) => ({ name: s, value: counts[s] }));
-
   const trendData = useMemo(() => {
     const weeks = [0, 0, 0, 0];
-    complaints.forEach((c) => {
-      const diff = Math.floor((Date.now() - c.createdAt.getTime()) / (7 * 86400000));
-      if (diff >= 0 && diff < 4) weeks[3 - diff]++;
-    });
+    complaints.forEach((c) => { const diff = Math.floor((Date.now() - c.createdAt.getTime()) / (7 * 86400000)); if (diff >= 0 && diff < 4) weeks[3 - diff]++; });
     return weeks.map((v, i) => ({ week: `Wk ${i + 1}`, complaints: v }));
   }, [complaints]);
-
   const cards = [
     { label: "Total Complaints", value: total, icon: FileText, color: T.ink },
     { label: "New (Submitted)", value: counts["Submitted"], icon: Bell, color: T.faint },
@@ -964,7 +833,6 @@ function MunicipalDashboard({ complaints }) {
     { label: "Closed", value: counts["Closed"], icon: ShieldCheck, color: T.forestDark },
     { label: "High Priority", value: highPriority, icon: CircleAlert, color: T.clay },
   ];
-
   return (
     <div>
       <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: 26, color: T.ink, marginBottom: 20 }}>Municipal Dashboard</h2>
@@ -977,7 +845,6 @@ function MunicipalDashboard({ complaints }) {
           </Card>
         ))}
       </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px,1fr))", gap: 18 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Complaints by category</div>
@@ -992,7 +859,6 @@ function MunicipalDashboard({ complaints }) {
             </BarChart>
           </ResponsiveContainer>
         </Card>
-
         <Card style={{ padding: 20 }}>
           <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Status distribution</div>
           <div style={{ fontSize: 12, color: T.faint, marginBottom: 14 }}>Where complaints stand right now</div>
@@ -1004,18 +870,9 @@ function MunicipalDashboard({ complaints }) {
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${T.line}` }} />
             </PieChart>
           </ResponsiveContainer>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, justifyContent: "center" }}>
-            {pieData.map((d, i) => (
-              <span key={d.name} style={{ fontSize: 10.5, color: T.faint, display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: PIE_COLORS[i % PIE_COLORS.length] }} /> {d.name}
-              </span>
-            ))}
-          </div>
         </Card>
-
         <Card style={{ padding: 20, gridColumn: "1 / -1" }}>
           <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Weekly complaint trend</div>
-          <div style={{ fontSize: 12, color: T.faint, marginBottom: 14 }}>Complaints logged over the last four weeks</div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={trendData}>
               <CartesianGrid vertical={false} stroke={T.line} />
@@ -1032,7 +889,7 @@ function MunicipalDashboard({ complaints }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Municipal: Grievances                                                   */
+/* Municipal: Grievances — status changes now write to Supabase            */
 /* ---------------------------------------------------------------------- */
 function Grievances({ complaints, onUpdate }) {
   const [query, setQuery] = useState("");
@@ -1040,22 +897,24 @@ function Grievances({ complaints, onUpdate }) {
   const [selectedId, setSelectedId] = useState(complaints[0]?.id || null);
   const [noteDraft, setNoteDraft] = useState("");
   const [deptDraft, setDeptDraft] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const filtered = complaints.filter((c) => {
-    const matchesQuery = (c.title + c.id + c.location).toLowerCase().includes(query.toLowerCase());
+    const matchesQuery = (c.title + c.code + c.location).toLowerCase().includes(query.toLowerCase());
     const matchesStatus = statusFilter === "All" || c.status === statusFilter;
     return matchesQuery && matchesStatus;
   });
-
   const selected = complaints.find((c) => c.id === selectedId) || filtered[0];
 
-  function advance() {
+  async function advance() {
     if (!selected) return;
     const idx = STATUS_FLOW.indexOf(selected.status);
     if (idx >= STATUS_FLOW.length - 1) return;
     const nextStatus = STATUS_FLOW[idx + 1];
-    const dept = deptDraft || selected.department !== "Unassigned" ? (deptDraft || selected.department) : DEPARTMENTS[0];
-    onUpdate(selected.id, nextStatus, dept, noteDraft);
+    const dept = deptDraft || (selected.department !== "Unassigned" ? selected.department : DEPARTMENTS[0]);
+    setBusy(true);
+    await onUpdate(selected.id, nextStatus, dept, noteDraft);
+    setBusy(false);
     setNoteDraft(""); setDeptDraft("");
   }
 
@@ -1070,8 +929,7 @@ function Grievances({ complaints, onUpdate }) {
               <input placeholder="Search by title, ID, or location" value={query} onChange={(e) => setQuery(e.target.value)} style={{ ...inputStyle, paddingLeft: 32 }} />
             </div>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: 150 }}>
-              <option>All</option>
-              {STATUS_FLOW.map((s) => <option key={s}>{s}</option>)}
+              <option>All</option>{STATUS_FLOW.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 560, overflowY: "auto", paddingRight: 4 }}>
@@ -1082,7 +940,7 @@ function Grievances({ complaints, onUpdate }) {
               return (
                 <Card key={c.id} onClick={() => setSelectedId(c.id)} style={{ padding: 14, cursor: "pointer", border: `1.5px solid ${active ? T.forest : T.line}`, background: active ? "#F4F8F3" : "#fff" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 11.5, color: T.faint, fontWeight: 600 }}>{c.id}</span>
+                    <span style={{ fontSize: 11.5, color: T.faint, fontWeight: 600 }}>{c.code}</span>
                     <PriorityDot p={c.priority} />
                   </div>
                   <div style={{ fontWeight: 700, fontSize: 13.5, color: T.ink, marginBottom: 6 }}>{c.title}</div>
@@ -1099,7 +957,7 @@ function Grievances({ complaints, onUpdate }) {
         {selected && (
           <Card style={{ flex: "1 1 380px", minWidth: 320, padding: 24, position: "sticky", top: 90 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-              <div style={{ fontSize: 11.5, color: T.faint, fontWeight: 700 }}>{selected.id}</div>
+              <div style={{ fontSize: 11.5, color: T.faint, fontWeight: 700 }}>{selected.code}</div>
               <Badge status={selected.status} />
             </div>
             <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 18, marginBottom: 10 }}>{selected.title}</div>
@@ -1108,13 +966,11 @@ function Grievances({ complaints, onUpdate }) {
               <div style={{ display: "flex", gap: 6 }}><MapPin size={13} /> {selected.location}</div>
               <div style={{ display: "flex", gap: 6 }}><Calendar size={13} /> Submitted {fmt(selected.createdAt)}</div>
               <div style={{ display: "flex", gap: 6 }}><Users size={13} /> {selected.department}</div>
-              <div style={{ display: "flex", gap: 6 }}><Upload size={13} /> Evidence: {selected.hasEvidence ? "Attached" : "None"}</div>
+              {selected.evidenceUrl && <a href={selected.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: T.sky, fontWeight: 700 }}>View uploaded evidence</a>}
             </div>
-
             <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16, marginBottom: 18 }}>
               <TimelineRiver timeline={selected.timeline} />
             </div>
-
             {selected.status !== "Closed" && (
               <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
@@ -1127,8 +983,8 @@ function Grievances({ complaints, onUpdate }) {
                   </select>
                 )}
                 <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} placeholder="Add an official update or response..." style={{ ...inputStyle, minHeight: 70, marginBottom: 10, resize: "vertical" }} />
-                <button onClick={advance} style={{ ...btnPrimary, width: "100%", justifyContent: "center" }}>
-                  Update status <ArrowRight size={15} />
+                <button onClick={advance} disabled={busy} style={{ ...btnPrimary, width: "100%", justifyContent: "center", opacity: busy ? 0.7 : 1 }}>
+                  {busy ? "Updating..." : <>Update status <ArrowRight size={15} /></>}
                 </button>
               </div>
             )}
@@ -1140,37 +996,23 @@ function Grievances({ complaints, onUpdate }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Nav / Shell                                                             */
+/* Nav                                                                     */
 /* ---------------------------------------------------------------------- */
-function TopNav({ role, user, page, setPage, onSwitchRole, onHome, unread, notifPage }) {
+function TopNav({ role, profile, page, setPage, onSignOut, onHome, unread, notifPage }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const citizenLinks = [
-    { id: "dashboard", label: "Home" },
-    { id: "report", label: "Report Pollution" },
-    { id: "mycomplaints", label: "My Complaints" },
-    { id: "awareness", label: "Awareness" },
-  ];
-  const municipalLinks = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "grievances", label: "All Grievances" },
-  ];
+  const citizenLinks = [{ id: "dashboard", label: "Home" }, { id: "report", label: "Report Pollution" }, { id: "mycomplaints", label: "My Complaints" }, { id: "awareness", label: "Awareness" }];
+  const municipalLinks = [{ id: "dashboard", label: "Dashboard" }, { id: "grievances", label: "All Grievances" }];
   const links = role === "citizen" ? citizenLinks : municipalLinks;
-
   return (
     <div style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(241,244,239,0.92)", backdropFilter: "blur(8px)", borderBottom: `1px solid ${T.line}` }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", height: 62, gap: 20 }}>
         <div onClick={onHome} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 16, color: T.ink }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: T.forest, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Leaf size={16} color="#fff" />
-          </div>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: T.forest, display: "flex", alignItems: "center", justifyContent: "center" }}><Leaf size={16} color="#fff" /></div>
           CleanCity
         </div>
         <div style={{ display: "flex", gap: 4, flex: 1 }} className="desktop-nav">
           {links.map((l) => (
-            <button key={l.id} onClick={() => setPage(l.id)} style={{
-              background: page === l.id ? "#fff" : "transparent", border: page === l.id ? `1px solid ${T.line}` : "1px solid transparent",
-              color: page === l.id ? T.forest : "#3C4A42", fontWeight: 600, fontSize: 13.5, padding: "8px 13px", borderRadius: 8, cursor: "pointer", fontFamily: FONT_BODY,
-            }}>{l.label}</button>
+            <button key={l.id} onClick={() => setPage(l.id)} style={{ background: page === l.id ? "#fff" : "transparent", border: page === l.id ? `1px solid ${T.line}` : "1px solid transparent", color: page === l.id ? T.forest : "#3C4A42", fontWeight: 600, fontSize: 13.5, padding: "8px 13px", borderRadius: 8, cursor: "pointer" }}>{l.label}</button>
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }} className="desktop-nav">
@@ -1181,12 +1023,9 @@ function TopNav({ role, user, page, setPage, onSwitchRole, onHome, unread, notif
             </button>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: T.faint, background: "#fff", border: `1px solid ${T.line}`, padding: "6px 10px", borderRadius: 20 }}>
-            {role === "citizen" ? <User size={13} /> : <Building2 size={13} />}
-            {user?.name || (role === "citizen" ? "Citizen" : "Municipal Official")}
+            {role === "citizen" ? <User size={13} /> : <Building2 size={13} />} {profile?.name || (role === "citizen" ? "Citizen" : "Official")}
           </div>
-          <button onClick={onSwitchRole} title="Sign out" style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
-            <LogOut size={15} color={T.faint} />
-          </button>
+          <button onClick={onSignOut} title="Sign out" style={{ background: "none", border: `1px solid ${T.line}`, borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}><LogOut size={15} color={T.faint} /></button>
         </div>
         <button className="mobile-nav-toggle" onClick={() => setMobileOpen((o) => !o)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", display: "none" }}>
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
@@ -1194,11 +1033,9 @@ function TopNav({ role, user, page, setPage, onSwitchRole, onHome, unread, notif
       </div>
       {mobileOpen && (
         <div className="mobile-nav-panel" style={{ borderTop: `1px solid ${T.line}`, padding: 14, display: "flex", flexDirection: "column", gap: 6, background: "#fff" }}>
-          {links.map((l) => (
-            <button key={l.id} onClick={() => { setPage(l.id); setMobileOpen(false); }} style={{ textAlign: "left", background: page === l.id ? T.paper : "transparent", border: "none", padding: "10px 12px", borderRadius: 8, fontWeight: 600, fontSize: 14 }}>{l.label}</button>
-          ))}
+          {links.map((l) => <button key={l.id} onClick={() => { setPage(l.id); setMobileOpen(false); }} style={{ textAlign: "left", background: page === l.id ? T.paper : "transparent", border: "none", padding: "10px 12px", borderRadius: 8, fontWeight: 600, fontSize: 14 }}>{l.label}</button>)}
           {role === "citizen" && <button onClick={() => { notifPage(); setMobileOpen(false); }} style={{ textAlign: "left", background: "transparent", border: "none", padding: "10px 12px", borderRadius: 8, fontWeight: 600, fontSize: 14 }}>Notifications {unread > 0 && `(${unread})`}</button>}
-          <button onClick={onSwitchRole} style={{ textAlign: "left", background: "transparent", border: "none", padding: "10px 12px", borderRadius: 8, fontWeight: 600, fontSize: 14, color: T.faint }}>Sign out</button>
+          <button onClick={onSignOut} style={{ textAlign: "left", background: "transparent", border: "none", padding: "10px 12px", borderRadius: 8, fontWeight: 600, fontSize: 14, color: T.faint }}>Sign out</button>
         </div>
       )}
     </div>
@@ -1206,103 +1043,145 @@ function TopNav({ role, user, page, setPage, onSwitchRole, onHome, unread, notif
 }
 
 /* ---------------------------------------------------------------------- */
-/* Root App                                                                */
+/* Root App — owns the Supabase session, profile, and all data fetching   */
 /* ---------------------------------------------------------------------- */
+function shapeComplaint(row) {
+  const timeline = (row.complaint_timeline || [])
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map((t) => ({ status: t.status, date: new Date(t.created_at), note: t.note, department: t.department }));
+  return {
+    id: row.id, code: row.complaint_code, title: row.title, category: row.category,
+    description: row.description, location: row.location, priority: row.priority,
+    status: row.status, department: row.department, evidenceUrl: row.evidence_url,
+    createdAt: new Date(row.created_at), userId: row.user_id, timeline,
+  };
+}
+
 export default function App() {
-  const [role, setRole] = useState(null); // null | 'citizen' | 'municipal'
+  const [authFlow, setAuthFlow] = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [page, setPage] = useState("dashboard");
-  const [complaints, setComplaints] = useState(() => seedComplaints());
+  const [complaints, setComplaints] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [idCounter, setIdCounter] = useState(128);
-  const [authFlow, setAuthFlow] = useState(null); // { role, targetPage } while on the sign-in screen
-  const [user, setUser] = useState(null); // captured profile from AuthForm
+  const [loading, setLoading] = useState(true);
 
-  function startAuth(r, p) {
-    setAuthFlow({ role: r, targetPage: p });
+  // Restore session on load, and react to sign-out elsewhere
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (!data.session) setLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Once we have a session, load the profile
+  useEffect(() => {
+    if (!session) { setProfile(null); return; }
+    supabase.from("profiles").select("*").eq("id", session.user.id).single().then(({ data }) => {
+      setProfile(data || null);
+      setLoading(false);
+    });
+  }, [session]);
+
+  const role = profile?.role || null;
+
+  async function fetchComplaints() {
+    if (!profile) return;
+    let query = supabase.from("complaints").select("*, complaint_timeline(*)").order("created_at", { ascending: false });
+    if (role === "citizen") query = query.eq("user_id", profile.id);
+    const { data } = await query;
+    setComplaints((data || []).map(shapeComplaint));
+  }
+  async function fetchNotifications() {
+    if (!profile) return;
+    const { data } = await supabase.from("notifications").select("*").eq("user_id", profile.id).order("created_at", { ascending: false });
+    setNotifications((data || []).map((n) => ({ id: n.id, message: n.message, read: n.read, date: new Date(n.created_at) })));
+  }
+  useEffect(() => { if (profile) { fetchComplaints(); fetchNotifications(); } }, [profile]);
+
+  async function submitComplaint(form, file) {
+    let evidenceUrl = null;
+    if (file) {
+      const path = `${profile.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("evidence").upload(path, file);
+      if (uploadError) return { error: uploadError.message };
+      const { data } = supabase.storage.from("evidence").getPublicUrl(path);
+      evidenceUrl = data.publicUrl;
+    }
+    const { data: inserted, error } = await supabase.from("complaints").insert({
+      user_id: profile.id, title: form.title, category: form.category, description: form.description,
+      location: form.location, priority: form.priority, evidence_url: evidenceUrl,
+    }).select().single();
+    if (error) return { error: error.message };
+    await supabase.from("complaint_timeline").insert({
+      complaint_id: inserted.id, status: "Submitted", note: "Complaint received and logged into the system.", department: "Grievance Cell",
+    });
+    await fetchComplaints();
+    return { code: inserted.complaint_code };
   }
 
-  function completeAuth(profile) {
-    setUser(profile);
-    setRole(authFlow.role);
-    setPage(authFlow.targetPage);
-    setAuthFlow(null);
+  async function updateComplaint(complaintId, nextStatus, dept, note) {
+    await supabase.from("complaints").update({ status: nextStatus, department: dept }).eq("id", complaintId);
+    await supabase.from("complaint_timeline").insert({
+      complaint_id: complaintId, status: nextStatus, department: dept, note: note?.trim() || `Status updated to ${nextStatus}.`,
+    });
+    const complaint = complaints.find((c) => c.id === complaintId);
+    if (complaint) {
+      await supabase.from("notifications").insert({
+        user_id: complaint.userId, complaint_id: complaintId,
+        message: `Your complaint has been moved to ${nextStatus}${dept && dept !== "Unassigned" ? ` · ${dept}` : ""}.`,
+      });
+    }
+    await fetchComplaints();
   }
 
-  function signOut() {
-    setRole(null);
-    setUser(null);
-    setAuthFlow(null);
+  async function markRead(notificationId) {
+    await supabase.from("notifications").update({ read: true }).eq("id", notificationId);
+    setNotifications((ns) => ns.map((n) => (n.id === notificationId ? { ...n, read: true } : n)));
   }
 
-  function submitComplaint(form) {
-    const id = `PC-2026-${String(idCounter).padStart(5, "0")}`;
-    setIdCounter((c) => c + 1);
-    const now = new Date();
-    const newComplaint = {
-      id, title: form.title, category: form.category, description: form.description,
-      location: form.location, priority: form.priority, hasEvidence: form.evidence,
-      citizen: user?.name || "Demo Citizen", status: "Submitted", department: "Unassigned",
-      createdAt: now, timeline: [{ status: "Submitted", date: now, note: "Complaint received and logged into the system.", department: "Grievance Cell" }],
-    };
-    setComplaints((cs) => [newComplaint, ...cs]);
-    return id;
-  }
-
-  function updateComplaint(id, nextStatus, dept, note) {
-    const now = new Date();
-    setComplaints((cs) => cs.map((c) => {
-      if (c.id !== id) return c;
-      const entry = { status: nextStatus, date: now, department: dept, note: note?.trim() || `Status updated to ${nextStatus}.` };
-      return { ...c, status: nextStatus, department: dept, timeline: [...c.timeline, entry] };
-    }));
-    setNotifications((ns) => [{ id: `${id}-${Date.now()}`, complaintId: id, date: now, read: false, message: `Your complaint has been moved to ${nextStatus}${dept && dept !== "Unassigned" ? ` · ${dept}` : ""}.` }, ...ns]);
-  }
-
-  function markRead(nid) {
-    setNotifications((ns) => ns.map((n) => (n.id === nid ? { ...n, read: true } : n)));
+  async function signOut() {
+    await supabase.auth.signOut();
+    setSession(null); setProfile(null); setAuthFlow(null); setPage("dashboard");
   }
 
   const unread = notifications.filter((n) => !n.read).length;
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.paper }}>
+        <Loader2 size={28} color={T.forest} className="spin" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: FONT_BODY, background: T.paper, minHeight: "100vh", color: T.ink }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        button { font-family: inherit; }
-        select, input, textarea { font-family: inherit; }
-        ::selection { background: #C7DBCB; }
-        @media (max-width: 860px) {
-          .desktop-nav { display: none !important; }
-          .mobile-nav-toggle { display: block !important; }
-        }
+        * { box-sizing: border-box; } button { font-family: inherit; } select, input, textarea { font-family: inherit; }
+        .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 860px) { .desktop-nav { display: none !important; } .mobile-nav-toggle { display: block !important; } }
       `}</style>
 
-      {role === null && authFlow === null && <Landing onEnter={startAuth} />}
-      {role === null && authFlow !== null && (
-        <AuthForm role={authFlow.role} onSubmit={completeAuth} onBack={() => setAuthFlow(null)} />
+      {!role && authFlow === null && <Landing onEnter={(r, p) => setAuthFlow({ role: r, targetPage: p })} />}
+      {!role && authFlow !== null && (
+        <AuthForm role={authFlow.role} onBack={() => setAuthFlow(null)} onAuthenticated={(prof) => { setProfile(prof); setPage(authFlow.targetPage); setAuthFlow(null); }} />
       )}
-      {role !== null && (
+      {role && (
         <>
-          <TopNav
-            role={role}
-            user={user}
-            page={page}
-            setPage={setPage}
-            onSwitchRole={signOut}
-            onHome={signOut}
-            unread={unread}
-            notifPage={() => setPage("notifications")}
-          />
+          <TopNav role={role} profile={profile} page={page} setPage={setPage} onSignOut={signOut} onHome={signOut} unread={unread} notifPage={() => setPage("notifications")} />
           <div style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 24px 80px" }}>
-            {role === "citizen" && page === "dashboard" && <CitizenHome complaints={complaints} setPage={setPage} user={user} />}
-            {role === "citizen" && page === "report" && <ReportForm onSubmit={submitComplaint} />}
+            {role === "citizen" && page === "dashboard" && <CitizenHome complaints={complaints} setPage={setPage} profile={profile} />}
+            {role === "citizen" && page === "report" && <ReportForm onSubmit={submitComplaint} userId={profile.id} />}
             {role === "citizen" && page === "mycomplaints" && <MyComplaints complaints={complaints} />}
             {role === "citizen" && page === "awareness" && <AwarenessHub />}
             {role === "citizen" && page === "notifications" && <Notifications notifications={notifications} onRead={markRead} />}
-
-            {role === "municipal" && page === "dashboard" && <MunicipalDashboard complaints={complaints} />}
-            {role === "municipal" && page === "grievances" && <Grievances complaints={complaints} onUpdate={updateComplaint} />}
+            {role === "official" && page === "dashboard" && <MunicipalDashboard complaints={complaints} />}
+            {role === "official" && page === "grievances" && <Grievances complaints={complaints} onUpdate={updateComplaint} />}
           </div>
         </>
       )}
@@ -1310,11 +1189,10 @@ export default function App() {
   );
 }
 
-function CitizenHome({ complaints, setPage, user }) {
-  const mine = complaints;
-  const active = mine.filter((c) => c.status !== "Closed").length;
-  const resolved = mine.filter((c) => c.status === "Resolved" || c.status === "Closed").length;
-  const firstName = user?.name ? user.name.split(" ")[0] : null;
+function CitizenHome({ complaints, setPage, profile }) {
+  const active = complaints.filter((c) => c.status !== "Closed").length;
+  const resolved = complaints.filter((c) => c.status === "Resolved" || c.status === "Closed").length;
+  const firstName = profile?.name ? profile.name.split(" ")[0] : null;
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
@@ -1325,7 +1203,7 @@ function CitizenHome({ complaints, setPage, user }) {
         <button style={btnPrimary} onClick={() => setPage("report")}>Raise a Complaint <ArrowRight size={15} /></button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: 32 }}>
-        <Card style={{ padding: 18 }}><FileText size={16} color={T.forest} /><div style={{ fontFamily: FONT_DISPLAY, fontSize: 24, fontWeight: 700, margin: "8px 0 2px" }}>{mine.length}</div><div style={{ fontSize: 12, color: T.faint }}>Total complaints</div></Card>
+        <Card style={{ padding: 18 }}><FileText size={16} color={T.forest} /><div style={{ fontFamily: FONT_DISPLAY, fontSize: 24, fontWeight: 700, margin: "8px 0 2px" }}>{complaints.length}</div><div style={{ fontSize: 12, color: T.faint }}>Total complaints</div></Card>
         <Card style={{ padding: 18 }}><Clock size={16} color={T.sky} /><div style={{ fontFamily: FONT_DISPLAY, fontSize: 24, fontWeight: 700, margin: "8px 0 2px" }}>{active}</div><div style={{ fontSize: 12, color: T.faint }}>Active</div></Card>
         <Card style={{ padding: 18 }}><CheckCircle2 size={16} color={T.forest} /><div style={{ fontFamily: FONT_DISPLAY, fontSize: 24, fontWeight: 700, margin: "8px 0 2px" }}>{resolved}</div><div style={{ fontSize: 12, color: T.faint }}>Resolved or closed</div></Card>
       </div>
@@ -1334,16 +1212,14 @@ function CitizenHome({ complaints, setPage, user }) {
         <button onClick={() => setPage("mycomplaints")} style={{ background: "none", border: "none", color: T.forest, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>View all <ChevronRight size={14} /></button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {mine.slice(0, 4).map((c) => {
+        {complaints.slice(0, 4).map((c) => {
           const meta = catMeta(c.category);
           return (
             <Card key={c.id} style={{ padding: 15, display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: T.paper, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <meta.icon size={16} color={meta.color} />
-              </div>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: T.paper, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><meta.icon size={16} color={meta.color} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 13.5 }}>{c.title}</div>
-                <div style={{ fontSize: 11.5, color: T.faint }}>{c.id} · {fmt(c.createdAt)}</div>
+                <div style={{ fontSize: 11.5, color: T.faint }}>{c.code} · {fmt(c.createdAt)}</div>
               </div>
               <Badge status={c.status} />
             </Card>
